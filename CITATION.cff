@@ -1,0 +1,39 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Verse Markup Language
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Boris
+    family-names: Orekhov
+    email: nevmenandr@gmail.com
+    affiliation: HSE University
+    orcid: 'https://orcid.org/0000-0002-9099-0436'
+identifiers:
+  - type: url
+    value: 'https://github.com/nevmenandr/VML'
+    description: GitHub repository
+repository-code: 'https://github.com/nevmenandr/VML'
+url: 'https://github.com/nevmenandr/VML'
+abstract: >-
+  Язык разметки VML (Verse Markup Language) —
+  специализированный формат для структурированного,
+  машиночитаемого представления стихотворных произведений.
+  Язык спроектирован как минималистичный и дружественный по
+  отношению к гуманитариям.
+keywords:
+  - poetry markup
+  - machine-readable poetry
+  - digital humanities
+  - corpus linguistics
+  - verse studies
+  - poetry corpora
+  - computational poetics
+  - text markup
+license: Apache-2.0
+version: '1.0'
+date-released: '2026-05-09'
