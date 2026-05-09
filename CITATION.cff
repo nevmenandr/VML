@@ -17,6 +17,8 @@ identifiers:
   - type: url
     value: 'https://github.com/nevmenandr/VML'
     description: GitHub repository
+  - type: doi
+    value: 10.5281/zenodo.20100191
 repository-code: 'https://github.com/nevmenandr/VML'
 url: 'https://github.com/nevmenandr/VML'
 abstract: >-
@@ -35,5 +37,6 @@ keywords:
   - computational poetics
   - text markup
 license: Apache-2.0
+commit: 0df08fcf6b900cc6a03524dde63a1acc12570bc6
 version: '1.0'
 date-released: '2026-05-09'

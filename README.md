@@ -1,9 +1,14 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20100192.svg)](https://doi.org/10.5281/zenodo.20100192) ![VML Badge](https://img.shields.io/badge/VML-1.0-blue) [![Лицензия](https://img.shields.io/badge/license-Apache%202.0-blue)](https://github.com/nevmenandr/VML/blob/main/LICENSE)
+
+
 # Verse Markup Language. Спецификация
 
 **VML (Verse Markup Language) 1.0**  
 Спецификация языка разметки для машиночитаемого представления стихотворных текстов. Язык спроектирван как минималистичный и дружественный к гуманитариям.
 
 ---
+
+![](Images/VML.png)
 
 ## 1. Преамбула
 
