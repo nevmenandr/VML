@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-VML Counter – подсчёт авторов, стихотворений и строк в VML-файле.
+VML Counter – подсчёт авторов, стихотворений, строк и циклов в VML-файле.
 """
 
 import sys
@@ -11,77 +11,53 @@ import re
 
 class VMLCounter:
     def __init__(self):
-        self.author_count = 0          # количество тегов <a>
-        self.poem_count = 0            # количество тегов <&>
-        self.line_count = 0            # количество стихотворных строк
-        self.in_title = False          # режим многострочного заголовка (<n> … <&>)
-        self.in_poem = False           # находимся внутри стихотворения (после <&>)
-        self.current_line_num = 0
+        self.author_count = 0
+        self.poem_count = 0
+        self.line_count = 0
+        self.cycle_count = 0
+        self.poems_in_cycles = 0
+        self.cycle_stats = []
 
-    def count(self, filepath):
-        with open(filepath, 'r', encoding='utf-8-sig') as f:
-            lines = f.readlines()
+        # Состояния
+        self.in_poem = False
+        self.in_title = False
+        self.incipit_seen = False
+        self.cycle_stack = []          # стек кортежей (название_цикла, счётчик_стихов)
 
-        for raw_line in lines:
-            self.current_line_num += 1
-            line = raw_line.rstrip('\n')
-            # Игнорируем пустые строки (не считаем)
-            if not line.strip():
-                continue
+    def _open_cycle(self, cycle_name, line_num):
+        """Открывает новый цикл."""
+        self.cycle_stack.append([cycle_name.strip() or "(без названия)", 0])
+        self.cycle_count += 1
 
-            # Экранированные теги: заменяем \ < на безопасную последовательность,
-            # чтобы они не распознавались как теги.
-            processed_line = self._remove_escaped_tags(line)
+    def _close_cycle(self, line_num):
+        """Закрывает текущий цикл и сохраняет статистику."""
+        if self.cycle_stack:
+            name, cnt = self.cycle_stack.pop()
+            self.cycle_stats.append((name, cnt))
 
-            # Проверяем наличие тегов в строке (после удаления экранирования)
-            tags = self._find_tags(processed_line)
+    def _register_poem(self):
+        """Увеличивает общий счётчик стихотворений и, если внутри цикла, увеличивает счётчик цикла."""
+        self.poem_count += 1
+        if self.cycle_stack:
+            self.cycle_stack[-1][1] += 1
+            self.poems_in_cycles += 1
 
-            # Обрабатываем теги в порядке появления
-            for tag, tag_start_pos in tags:
-                self._process_tag(tag, line, processed_line)
+    def _close_current_poem(self):
+        """Закрывает текущее стихотворение (сброс флагов)."""
+        if self.in_poem:
+            self.in_poem = False
+            self.in_title = False
+            self.incipit_seen = False
 
-            # Если мы внутри стихотворения (in_poem = True) и строка не была обработана
-            # как проза/дата/место/заголовок, и строка не является только тегом (без текста),
-            # то считаем её стихотворной строкой.
-            # Однако многие теги (например, <*>) могут быть на отдельной строке без текста.
-            # Поэтому проверяем: если внутри стихотворения и после удаления всех тегов
-            # в строке остался непробельный текст, то это строка.
-            if self.in_poem and not self.in_title:
-                # Удаляем все теги (которые мы уже обработали) из строки
-                text_without_tags = self._strip_tags(processed_line)
-                if text_without_tags.strip():
-                    self.line_count += 1
-                    # Чтобы не дублировать строки, которые уже добавились при обработке <&>,
-                    # но <&> обрабатывается отдельно и добавляет строку (инципит).
-                    # Поэтому мы должны избежать двойного счёта одной и той же строки.
-                    # Решение: при обработке <&> мы уже увеличили line_count.
-                    # При последующем вызове (для этой же строки) мы снова увидим текст.
-                    # Нужно запомнить, что строка уже учтена.
-                    # Заведём флаг: is_line_counted_for_current_line.
-                    # Упростим: при обработке <&> сразу засчитываем строку и не будем считать её повторно.
-                    # Для этого будем вести флаг counted для текущей строки.
-                    pass
-
-        # Дополнительная проверка: после выхода из цикла ничего не требуется
-        return self.author_count, self.poem_count, self.line_count
-
-    def _remove_escaped_tags(self, line):
-        """Заменяет экранированные последовательности вида \<...> на плейсхолдер,
-        чтобы они не распознавались как теги."""
-        # Ищем \< и затем символы до >, но не захватываем экранирование
-        # Простейший способ: заменить все \< на неиспользуемый символ, например \x00
-        # Но нужно, чтобы текст остался читаемым? Не важно.
-        # Удаляем обратный слеш перед угловой скобкой, превращая <...> в обычный текст.
+    def _unescape(self, line):
+        """Убирает экранирование: заменяет \<...> на <...>, но удаляет обратный слеш."""
         result = []
         i = 0
         n = len(line)
         while i < n:
             if line[i] == '\\' and i+1 < n and line[i+1] == '<':
-                # Экранированная угловая скобка: пропускаем обратный слеш и не считаем тегом
-                result.append(line[i+1])   # добавляем '<' как обычный символ
+                result.append('<')
                 i += 2
-                # Продолжаем, но нужно убедиться, что мы не обработаем оставшуюся часть как тег
-                # Просто копируем дальше без изменений
                 continue
             else:
                 result.append(line[i])
@@ -89,7 +65,7 @@ class VMLCounter:
         return ''.join(result)
 
     def _find_tags(self, line):
-        """Находит все неэкранированные теги в строке, возвращает список (tag, позиция)."""
+        """Возвращает список (тег, позиция) всех неэкранированных тегов в строке."""
         tags = []
         i = 0
         n = len(line)
@@ -109,51 +85,124 @@ class VMLCounter:
         return tags
 
     def _strip_tags(self, line):
-        """Удаляет все теги из строки (не затрагивая экранирование, которое уже обработано)."""
+        """Удаляет все теги из строки (не трогая экранирование, оно уже обработано)."""
         return re.sub(r'<[^>]+>', '', line)
 
-    def _process_tag(self, tag, original_line, processed_line):
-        """Обработка отдельных тегов."""
-        # Тег автора
-        if tag == 'a':
-            self.author_count += 1
-            # Сбрасываем состояние: новый автор, стихотворения и заголовки не продолжаются
-            self.in_poem = False
-            self.in_title = False
-        # Тег начала заголовка
-        elif tag == 'n':
-            if not self.in_poem:
+    def _extract_cycle_title(self, line, tag_start_pos):
+        """Извлекает название цикла из строки после тега <nn>."""
+        after_tag = line[tag_start_pos + len('<nn>'):].lstrip()
+        return after_tag.strip()
+
+    def count(self, filepath):
+        with open(filepath, 'r', encoding='utf-8-sig') as f:
+            lines = f.readlines()
+
+        for line_num, raw_line in enumerate(lines, start=1):
+            line = raw_line.rstrip('\n')
+            if not line.strip():
+                continue
+
+            clean_line = self._unescape(line)
+            tags = self._find_tags(clean_line)
+
+            # Ищем основные теги в порядке появления
+            main_tag = None
+            main_tag_pos = None
+            for tag, pos in tags:
+                if tag in ('a', '&&', 'n', '&', 'rm', '#', '%', '*', 'nn', '/nn'):
+                    main_tag = tag
+                    main_tag_pos = pos
+                    break
+
+            if main_tag is None:
+                # Строка без управляющих тегов — возможно, стихотворная строка
+                if self.in_poem and not self.in_title:
+                    text = self._strip_tags(clean_line)
+                    if text.strip():
+                        self.line_count += 1
+                continue
+
+            # Обработка тегов
+            # ------------------------------------------------------------
+            if main_tag == 'a':
+                self._close_current_poem()
+                while self.cycle_stack:
+                    self._close_cycle(line_num)
+                self.author_count += 1
+                self.in_poem = False
+                self.in_title = False
+                self.incipit_seen = False
+
+            elif main_tag == '&&':
+                self._close_current_poem()
+                self.in_poem = True
+                self.in_title = False
+                self.incipit_seen = False
+                self._register_poem()
+
+            elif main_tag == 'n':
+                self._close_current_poem()
+                self.in_poem = True
                 self.in_title = True
-        # Тег инципита (начало стихотворения)
-        elif tag == '&':
-            self.poem_count += 1
-            self.in_poem = True
-            self.in_title = False
-            # Первая строка (инципит) – это текст после тега <&> до конца строки
-            # Удаляем все остальные теги из этой же строки
-            text_after = self._strip_tags(processed_line)
-            # Удаляем сам тег <&>
-            # Текст может быть как сразу после тега, так и с пробелами
-            # Просто берём остаток строки после позиции тега? Упростим: возьмём то, что осталось.
-            # Поскольку мы уже удалили теги, остаётся чистый текст.
-            # Но нужно убедиться, что это не пустая строка.
-            # Однако также возможно, что после <&> идут метрические теги <m-...> и лесенка,
-            # они уже удалены функцией _strip_tags, останется только чистый текст строки.
-            if text_after.strip():
-                self.line_count += 1
-            # Если текст отсутствует (только <&> без текста) – ошибка, но мы его не считаем
-        # Теги прозы, даты, места – не считаем строки
-        elif tag in ('rm', '#', '%'):
-            # Эти строки не являются стихотворными, даже если есть текст.
-            # Но они также не обнуляют in_poem.
-            # Однако если мы встретили <rm> внутри стихотворения, то эта строка не должна считаться стихотворной.
-            # Ничего не делаем – просто пропускаем.
-            pass
-        # Тег строфы <*> – может иметь текст после себя (тогда это стихотворная строка)
-        # Здесь текст будет обработан в основном коде (т.к. теги удалены)
-        # Остальные теги (nn, /nn, l-..., m-...) игнорируем для подсчёта строк
-        else:
-            pass
+                self.incipit_seen = False
+                # Стихотворение ещё не засчитываем — нужен инципит
+
+            elif main_tag == '&':
+                # Если уже есть стихотворение с инципитом — закрываем его (начинаем новое)
+                if self.in_poem and self.incipit_seen:
+                    self._close_current_poem()
+                    self.in_poem = True
+                    self.in_title = False
+                    self.incipit_seen = False
+                # Если стихотворение не начато, начинаем
+                if not self.in_poem:
+                    self.in_poem = True
+                    self.in_title = False
+                    self.incipit_seen = False
+                # Теперь in_poem == True, incipit_seen == False (новое или ранее начатое)
+                # Регистрируем стихотворение при первом инципите
+                if not self.incipit_seen:
+                    self._register_poem()
+                self.incipit_seen = True
+                self.in_title = False
+
+                # Первая стихотворная строка (инципит)
+                text = self._strip_tags(clean_line)
+                if text.strip():
+                    self.line_count += 1
+
+            elif main_tag == 'nn':
+                self._close_current_poem()
+                cycle_title = self._extract_cycle_title(clean_line, main_tag_pos)
+                self._open_cycle(cycle_title, line_num)
+
+            elif main_tag == '/nn':
+                self._close_current_poem()
+                self._close_cycle(line_num)
+
+            elif main_tag in ('rm', '#', '%'):
+                pass
+
+            elif main_tag == '*':
+                if self.in_poem and not self.in_title:
+                    text = self._strip_tags(clean_line)
+                    if text.strip():
+                        self.line_count += 1
+
+        # По окончании файла закрываем всё незакрытое
+        self._close_current_poem()
+        while self.cycle_stack:
+            self._close_cycle(len(lines))
+
+        return {
+            'authors': self.author_count,
+            'poems_total': self.poem_count,
+            'poems_in_cycles': self.poems_in_cycles,
+            'poems_outside_cycles': self.poem_count - self.poems_in_cycles,
+            'cycles': self.cycle_count,
+            'cycle_stats': self.cycle_stats,
+            'lines': self.line_count,
+        }
 
 
 def main():
@@ -164,10 +213,17 @@ def main():
     filepath = sys.argv[1]
     counter = VMLCounter()
     try:
-        authors, poems, lines = counter.count(filepath)
-        print(f"Авторов: {authors}")
-        print(f"Стихотворений: {poems}")
-        print(f"Стихотворных строк: {lines}")
+        stats = counter.count(filepath)
+        print(f"Авторов: {stats['authors']}")
+        print(f"Всего стихотворений: {stats['poems_total']}")
+        print(f"  из них в циклах: {stats['poems_in_cycles']}")
+        print(f"  вне циклов: {stats['poems_outside_cycles']}")
+        print(f"Циклов: {stats['cycles']}")
+        if stats['cycle_stats']:
+            print("\nСтатистика по циклам:")
+            for title, cnt in stats['cycle_stats']:
+                print(f"  «{title}»: {cnt} стихотворений")
+        print(f"Стихотворных строк: {stats['lines']}")
     except Exception as e:
         print(f"Ошибка: {e}")
         sys.exit(1)
