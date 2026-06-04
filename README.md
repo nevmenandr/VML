@@ -1,4 +1,4 @@
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20100192.svg)](https://doi.org/10.5281/zenodo.20100192) ![VML Badge](https://img.shields.io/badge/VML-1.0-blue) [![Лицензия](https://img.shields.io/badge/license-Apache%202.0-blue)](https://github.com/nevmenandr/VML/blob/main/LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20100191.svg)](https://doi.org/10.5281/zenodo.20100191) ![VML Badge](https://img.shields.io/badge/VML-1.0-blue) [![Лицензия](https://img.shields.io/badge/license-Apache%202.0-blue)](https://github.com/nevmenandr/VML/blob/main/LICENSE)
 
 
 # Verse Markup Language. Спецификация
